@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P2P Cyber Arena 2D</title>
+  <!-- PeerJS CDN for zero-config WebRTC P2P signaling -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --panel: #12161f;
+      --accent: #00f0ff;
+      --accent-magenta: #ff0077;
+      --text: #e0f7fc;
+      --dim: #456268;
+      --border: #1e293b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Sidebar HUD */
+    #sidebar {
+      width: 320px;
+      background: var(--panel);
+      border-right: 2px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 18px;
+      gap: 16px;
+      z-index: 10;
+      box-shadow: 5px 0 25px rgba(0,0,0,0.5);
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      letter-spacing: 2px;
+      color: var(--accent);
+      text-transform: uppercase;
+      text-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 8px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .card-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--dim);
+      margin-bottom: 8px;
+    }
+
+    .id-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #000;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px dashed var(--accent);
+    }
+
+    .id-box code {
+      font-size: 1.1rem;
+      color: var(--accent);
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+
+    button {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+    }
+
+    button:hover {
+      box-shadow: 0 0 12px var(--accent);
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button.btn-danger {
+      background: var(--accent-magenta);
+      color: #fff;
+    }
+
+    button.btn-danger:hover {
+      box-shadow: 0 0 12px var(--accent-magenta);
+    }
+
+    .input-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      background: #000;
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: 6px;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    #friends-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .friend-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0,0,0,0.4);
+      padding: 6px 10px;
+      border-radius: 6px;
+      border-left: 3px solid var(--accent);
+    }
+
+    .friend-item.connected {
+      border-left-color: #00ff66;
+    }
+
+    /* Controls Guide */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 0.8rem;
+    }
+
+    .key {
+      background: #222;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      color: var(--accent);
+      font-family: monospace;
+    }
+
+    /* Game Area */
+    #game-container {
+      flex: 1;
+      position: relative;
+      background: #05070a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    canvas {
+      box-shadow: 0 0 30px rgba(0,0,0,0.9);
+      border: 2px solid var(--border);
+      background: #080b10;
+    }
+
+    /* Challenge Overlay Modal */
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      backdrop-filter: blur(5px);
+    }
+
+    .modal {
+      background: var(--panel);
+      border: 2px solid var(--accent);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      max-width: 400px;
+      box-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+    }
+
+    .modal h2 {
+      margin-bottom: 12px;
+      color: var(--accent);
+    }
+
+    .modal p {
+      margin-bottom: 20px;
+      color: #ccc;
+    }
+
+    .modal-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    #status-badge {
+      font-size: 0.75rem;
+      padding: 4px 8px;
+      border-radius: 12px;
+      display: inline-block;
+      margin-top: 4px;
+    }
+    .status-online { background: rgba(0, 255, 102, 0.2); color: #00ff66; border: 1px solid #00ff66; }
+    .status-offline { background: rgba(255, 0, 0, 0.2); color: #ff4444; border: 1px solid #ff4444; }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar Interface -->
+  <div id="sidebar">
+    <h1>P2P Shooter</h1>
+
+    <!-- Player Profile Card -->
+    <div class="card">
+      <div class="card-title">Your Player ID</div>
+      <div class="id-box">
+        <code id="my-id">GENERATING...</code>
+        <button onclick="copyMyID()">Copy</button>
+      </div>
+      <div id="status-badge" class="status-offline">Connecting to P2P...</div>
+    </div>
+
+    <!-- Friend System -->
+    <div class="card">
+      <div class="card-title">Add Friend</div>
+      <div class="input-group">
+        <input type="text" id="friend-id-input" placeholder="Paste Friend ID">
+        <button onclick="addFriend()">Add</button>
+      </div>
+    </div>
+
+    <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+      <div class="card-title">Friends & Opponents</div>
+      <ul id="friends-list">
+        <li style="color: var(--dim); font-size: 0.8rem; text-align: center; padding: 10px;">No friends added yet</li>
+      </ul>
+    </div>
+
+    <!-- Controls Tutorial -->
+    <div class="card">
+      <div class="card-title">Controls Tutorial</div>
+      <div class="controls-grid">
+        <div>Move:</div> <div><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span></div>
+        <div>Aim:</div> <div><span class="key">Mouse Move</span></div>
+        <div>Shoot:</div> <div><span class="key">Left Click</span></div>
+        <div>Dash:</div> <div><span class="key">Space</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Arena Screen -->
+  <div id="game-container">
+    <canvas id="gameCanvas" width="900" height="650"></canvas>
+
+    <!-- Interactive Challenge/Match Modal Overlay -->
+    <div id="overlay" class="hidden">
+      <div class="modal">
+        <h2 id="modal-title">CHALLENGE RECEIVED!</h2>
+        <p id="modal-desc">Player XXX has challenged you to a 1v1 duel.</p>
+        <div class="modal-buttons">
+          <button id="btn-accept">ACCEPT</button>
+          <button id="btn-decline" class="btn-danger">DECLINE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       P2P NETWORKING ENGINE (PeerJS - Zero Backend Server Setup)
+       ========================================================================== */
+    // Generate a clean unique 5-character ID for easy sharing
+    const customPlayerID = 'arena-' + Math.random().toString(36).substring(2, 7);
+    
+    let peer = new Peer(customPlayerID);
+    let activeConnection = null;
+    let friends = JSON.parse(localStorage.getItem('p2p_shooter_friends') || '[]');
+    let pendingChallengeSender = null;
+
+    const myIdEl = document.getElementById('my-id');
+    const statusBadge = document.getElementById('status-badge');
+    const friendsListEl = document.getElementById('friends-list');
+    const overlay = document.getElementById('overlay');
+    const modalTitle = document.getElementById('modal-title');
+    const modalDesc = document.getElementById('modal-desc');
+    const btnAccept = document.getElementById('btn-accept');
+    const btnDecline = document.getElementById('btn-decline');
+
+    peer.on('open', (id) => {
+      myIdEl.innerText = id;
+      statusBadge.innerText = "Online & Ready";
+      statusBadge.className = "status-badge status-online";
+      renderFriendsList();
+    });
+
+    peer.on('error', (err) => {
+      console.error("PeerJS Error:", err);
+      statusBadge.innerText = "Connection Error";
+      statusBadge.className = "status-badge status-offline";
+    });
+
+    // Listen for incoming P2P connections
+    peer.on('connection', (conn) => {
+      setupConnectionListeners(conn);
+    });
+
+    function setupConnectionListeners(conn) {
+      activeConnection = conn;
+
+      conn.on('open', () => {
+        // Automatically save incoming connection ID to friends if not present
+        if (!friends.includes(conn.peer)) {
+          friends.push(conn.peer);
+          localStorage.setItem('p2p_shooter_friends', JSON.stringify(friends));
+          renderFriendsList();
+        }
+      });
+
+      conn.on('data', (data) => {
+        handleIncomingData(data, conn);
+      });
+
+      conn.on('close', () => {
+        activeConnection = null;
+        renderFriendsList();
+        resetGame("Peer Disconnected");
+      });
+    }
+
+    function copyMyID() {
+      navigator.clipboard.writeText(peer.id);
+      alert("Player ID copied to clipboard!");
+    }
+
+    function addFriend() {
+      const input = document.getElementById('friend-id-input');
+      const friendId = input.value.trim();
+      if (!friendId) return;
+      if (friendId === peer.id) {
+        alert("You cannot add yourself!");
+        return;
+      }
+      if (!friends.includes(friendId)) {
+        friends.push(friendId);
+        localStorage.setItem('p2p_shooter_friends', JSON.stringify(friends));
+        renderFriendsList();
+      }
+      input.value = '';
+    }
+
+    function removeFriend(id) {
+      friends = friends.filter(f => f !== id);
+      localStorage.setItem('p2p_shooter_friends', JSON.stringify(friends));
+      renderFriendsList();
+    }
+
+    function renderFriendsList() {
+      friendsListEl.innerHTML = '';
+      if (friends.length === 0) {
+        friendsListEl.innerHTML = `<li style="color: var(--dim); font-size: 0.8rem; text-align: center; padding: 10px;">No friends added yet</li>`;
+        return;
+      }
+
+      friends.forEach(id => {
+        const li = document.createElement('li');
+        li.className = `friend-item ${activeConnection && activeConnection.peer === id ? 'connected' : ''}`;
+        li.innerHTML = `
+          <code>${id}</code>
+          <div>
+            <button onclick="sendChallenge('${id}')">Challenge</button>
+            <button class="btn-danger" style="padding: 4px 8px; margin-left:4px;" onclick="removeFriend('${id}')">X</button>
+          </div>
+        `;
+        friendsListEl.appendChild(li);
+      });
+    }
+
+    function sendChallenge(friendId) {
+      if (activeConnection && activeConnection.peer === friendId && activeConnection.open) {
+        activeConnection.send({ type: 'CHALLENGE_REQUEST' });
+        showWaitingOverlay("Challenge sent! Waiting for response...");
+      } else {
+        const conn = peer.connect(friendId);
+        setupConnectionListeners(conn);
+        conn.on('open', () => {
+          conn.send({ type: 'CHALLENGE_REQUEST' });
+          showWaitingOverlay("Challenge sent! Waiting for response...");
+        });
+      }
+    }
+
+    function showWaitingOverlay(msg) {
+      modalTitle.innerText = "WAITING...";
+      modalDesc.innerText = msg;
+      btnAccept.classList.add('hidden');
+      btnDecline.innerText = "CANCEL";
+      btnDecline.onclick = () => {
+        overlay.classList.add('hidden');
+      };
+      overlay.classList.remove('hidden');
+    }
+
+    function handleIncomingData(data, conn) {
+      switch (data.type) {
+        case 'CHALLENGE_REQUEST':
+          pendingChallengeSender = conn;
+          modalTitle.innerText = "CHALLENGE RECEIVED!";
+          modalDesc.innerText = `Player [ ${conn.peer} ] has challenged you to a duel!`;
+          btnAccept.classList.remove('hidden');
+          btnDecline.innerText = "DECLINE";
+          btnAccept.onclick = () => {
+            conn.send({ type: 'CHALLENGE_ACCEPTED' });
+            overlay.classList.add('hidden');
+            startMatch(false); // Second player starts on the right
+          };
+          btnDecline.onclick = () => {
+            conn.send({ type: 'CHALLENGE_DECLINED' });
+            overlay.classList.add('hidden');
+          };
+          overlay.classList.remove('hidden');
+          break;
+
+        case 'CHALLENGE_ACCEPTED':
+          overlay.classList.add('hidden');
+          startMatch(true); // Host starts on the left
+          break;
+
+        case 'CHALLENGE_DECLINED':
+          alert("Challenge was declined.");
+          overlay.classList.add('hidden');
+          break;
+
+        case 'GAME_STATE':
+          // Update opponent's sync state
+          remotePlayer.x = data.x;
+          remotePlayer.y = data.y;
+          remotePlayer.angle = data.angle;
+          remotePlayer.health = data.health;
+          break;
+
+        case 'SHOOT':
+          spawnBullet(data.x, data.y, data.vx, data.vy, false);
+          break;
+
+        case 'RESET_GAME':
+          resetGame(data.reason);
+          break;
+      }
+    }
+
+    /* ==========================================================================
+       GAME ENGINE & CANVAS GRAPHICS (2D Multiplayer Arena)
+       ========================================================================== */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Arena map layout with futuristic obstacles
+    const obstacles = [
+      { x: 180, y: 120, w: 60, h: 180 },
+      { x: 660, y: 350, w: 60, h: 180 },
+      { x: 380, y: 240, w: 140, h: 170 },
+      { x: 180, y: 450, w: 160, h: 40 },
+      { x: 560, y: 160, w: 160, h: 40 }
+    ];
+
+    let gameActive = false;
+    let localPlayer = { x: 100, y: 325, radius: 18, color: '#00f0ff', speed: 4.5, health: 100, maxHealth: 100, angle: 0 };
+    let remotePlayer = { x: 800, y: 325, radius: 18, color: '#ff0077', speed: 4.5, health: 100, maxHealth: 100, angle: 0 };
+    
+    let bullets = [];
+    let particles = [];
+    let keys = {};
+    let mouseX = 0;
+    let mouseY = 0;
+
+    // Track User Inputs
+    window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+    window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+    
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener('mousedown', e => {
+      if (e.button === 0 && gameActive && localPlayer.health > 0) {
+        shootBullet();
+      }
+    });
+
+    function startMatch(isHost) {
+      gameActive = true;
+      localPlayer.health = 100;
+      remotePlayer.health = 100;
+      bullets = [];
+      particles = [];
+
+      if (isHost) {
+        localPlayer.x = 100;
+        localPlayer.y = 325;
+        remotePlayer.x = 800;
+        remotePlayer.y = 325;
+      } else {
+        localPlayer.x = 800;
+        localPlayer.y = 325;
+        remotePlayer.x = 100;
+        remotePlayer.y = 325;
+      }
+    }
+
+    function resetGame(reason) {
+      gameActive = false;
+      if (reason) alert(reason);
+    }
+
+    function shootBullet() {
+      const vx = Math.cos(localPlayer.angle) * 12;
+      const vy = Math.sin(localPlayer.angle) * 12;
+      const startX = localPlayer.x + Math.cos(localPlayer.angle) * (localPlayer.radius + 5);
+      const startY = localPlayer.y + Math.sin(localPlayer.angle) * (localPlayer.radius + 5);
+
+      spawnBullet(startX, startY, vx, vy, true);
+
+      // Transmit shoot event to peer
+      if (activeConnection && activeConnection.open) {
+        activeConnection.send({
+          type: 'SHOOT',
+          x: startX,
+          y: startY,
+          vx: vx,
+          vy: vy
+        });
+      }
+    }
+
+    function spawnBullet(x, y, vx, vy, isLocal) {
+      bullets.push({ x, y, vx, vy, isLocal, radius: 4, life: 120 });
+      // Muzzle flare effect
+      for (let i = 0; i < 5; i++) {
+        particles.push({
+          x: x, y: y,
+          vx: (Math.random() - 0.5) * 4 + vx * 0.2,
+          vy: (Math.random() - 0.5) * 4 + vy * 0.2,
+          radius: Math.random() * 3 + 1,
+          color: isLocal ? '#00f0ff' : '#ff0077',
+          life: 15
+        });
+      }
+    }
+
+    function update() {
+      if (!gameActive) return;
+
+      // 1. Calculate local player movement & collisions
+      let moveX = 0;
+      let moveY = 0;
+      if (keys['w'] || keys['arrowup']) moveY -= 1;
+      if (keys['s'] || keys['arrowdown']) moveY += 1;
+      if (keys['a'] || keys['arrowleft']) moveX -= 1;
+      if (keys['d'] || keys['arrowright']) moveX += 1;
+
+      // Normalize diagonal speed
+      if (moveX !== 0 && moveY !== 0) {
+        moveX *= 0.7071;
+        moveY *= 0.7071;
+      }
+
+      let newX = localPlayer.x + moveX * localPlayer.speed;
+      let newY = localPlayer.y + moveY * localPlayer.speed;
+
+      // Map bounds collision
+      newX = Math.max(localPlayer.radius, Math.min(canvas.width - localPlayer.radius, newX));
+      newY = Math.max(localPlayer.radius, Math.min(canvas.height - localPlayer.radius, newY));
+
+      // Obstacle collision box check
+      if (!checkObstacleCollision(newX, localPlayer.y, localPlayer.radius)) {
+        localPlayer.x = newX;
+      }
+      if (!checkObstacleCollision(localPlayer.x, newY, localPlayer.radius)) {
+        localPlayer.y = newY;
+      }
+
+      // Calculate aiming angle towards cursor
+      localPlayer.angle = Math.atan2(mouseY - localPlayer.y, mouseX - localPlayer.x);
+
+      // Send telemetry updates to peer over DataChannel
+      if (activeConnection && activeConnection.open) {
+        activeConnection.send({
+          type: 'GAME_STATE',
+          x: localPlayer.x,
+          y: localPlayer.y,
+          angle: localPlayer.angle,
+          health: localPlayer.health
+        });
+      }
+
+      // 2. Update Bullet Physics and Collisions
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.life--;
+
+        // Collision with map walls or screen bounds
+        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height || checkObstacleCollision(b.x, b.y, b.radius) || b.life <= 0) {
+          createImpactParticles(b.x, b.y, b.isLocal ? '#00f0ff' : '#ff0077');
+          bullets.splice(i, 1);
+          continue;
+        }
+
+        // Hit Detection against remote opponent (Calculated client-side for accuracy)
+        if (b.isLocal) {
+          let dist = Math.hypot(b.x - remotePlayer.x, b.y - remotePlayer.y);
+          if (dist < localPlayer.radius + b.radius) {
+            remotePlayer.health -= 10;
+            createImpactParticles(b.x, b.y, '#ff0077');
+            bullets.splice(i, 1);
+
+            if (remotePlayer.health <= 0) {
+              alert("VICTORY! You destroyed your opponent!");
+              resetGame();
+              if (activeConnection) activeConnection.send({ type: 'RESET_GAME', reason: "DEFEAT! You were destroyed!" });
+            }
+          }
+        }
+      }
+
+      // 3. Update Visual Particle Effects
+      for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+    }
+
+    function checkObstacleCollision(x, y, radius) {
+      for (let obs of obstacles) {
+        if (x + radius > obs.x && x - radius < obs.x + obs.w &&
+            y + radius > obs.y && y - radius < obs.y + obs.h) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function createImpactParticles(x, y, color) {
+      for (let i = 0; i < 8; i++) {
+        particles.push({
+          x: x, y: y,
+          vx: (Math.random() - 0.5) * 6,
+          vy: (Math.random() - 0.5) * 6,
+          radius: Math.random() * 3 + 1,
+          color: color,
+          life: 20
+        });
+      }
+    }
+
+    /* ==========================================================================
+       RENDER SYSTEM
+       ========================================================================== */
+    function render() {
+      // Clear background grid
+      ctx.fillStyle = '#080b10';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Render subtle background grid lines
+      ctx.strokeStyle = '#121926';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      // Draw map obstacles
+      ctx.fillStyle = '#161f2e';
+      ctx.strokeStyle = '#00f0ff33';
+      ctx.lineWidth = 2;
+      obstacles.forEach(obs => {
+        ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+        ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+      });
+
+      if (gameActive) {
+        // Render Local Player
+        drawPlayer(localPlayer.x, localPlayer.y, localPlayer.angle, localPlayer.color, "YOU", localPlayer.health);
+        
+        // Render Opponent Player
+        drawPlayer(remotePlayer.x, remotePlayer.y, remotePlayer.angle, remotePlayer.color, "ENEMY", remotePlayer.health);
+
+        // Render Bullets with glowing effect
+        bullets.forEach(b => {
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = b.isLocal ? '#00f0ff' : '#ff0077';
+          ctx.fillStyle = b.isLocal ? '#00f0ff' : '#ff0077';
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        });
+
+        // Render Particles
+        particles.forEach(p => {
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      } else {
+        // Idle Screen Overlay text
+        ctx.fillStyle = '#00f0ff';
+        ctx.font = '24px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText("ADD A FRIEND & SEND A CHALLENGE TO START DATING THE ARENA", canvas.width / 2, canvas.height / 2);
+      }
+
+      requestAnimationFrame(mainLoop);
+    }
+
+    function drawPlayer(x, y, angle, color, label, health) {
+      ctx.save();
+      ctx.translate(x, y);
+
+      // Draw Health Bar above player head
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(-25, -35, 50, 6);
+      ctx.fillStyle = health > 30 ? '#00ff66' : '#ff0044';
+      ctx.fillRect(-25, -35, (health / 100) * 50, 6);
+
+      // Draw Player Label
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, 0, -42);
+
+      // Rotate canvas for turret aim
+      ctx.rotate(angle);
+
+      // Player Body Glow
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = color;
+
+      // Gun Barrel
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, -4, 26, 8);
+
+      // Player Circle Base
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(0, 0, 18, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Inner Core Accent
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(0, 0, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function mainLoop() {
+      update();
+      render();
+    }
+
+    // Start Engine Loop
+    requestAnimationFrame(mainLoop);
+  </script>
+</body>
+</html>
